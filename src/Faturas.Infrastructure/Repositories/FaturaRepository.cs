@@ -21,7 +21,7 @@ public class FaturaRepository : IFaturaRepository
         var query = _context.Faturas.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter.NomeCliente))
-            query = query.Where(f => f.NomeCliente.Contains(filter.NomeCliente));
+            query = query.Where(f => EF.Functions.ILike(f.NomeCliente, $"%{filter.NomeCliente}%"));
 
         if (filter.DataInicial.HasValue)
             query = query.Where(f => f.DataEmissao >= filter.DataInicial.Value);
