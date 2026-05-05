@@ -24,10 +24,16 @@ public class FaturaRepository : IFaturaRepository
             query = query.Where(f => EF.Functions.ILike(f.NomeCliente, $"%{filter.NomeCliente}%"));
 
         if (filter.DataInicial.HasValue)
-            query = query.Where(f => f.DataEmissao >= filter.DataInicial.Value);
+        {
+            var inicio = DateTime.SpecifyKind(filter.DataInicial.Value.Date, DateTimeKind.Utc);
+            query = query.Where(f => f.DataEmissao >= inicio);
+        }
 
         if (filter.DataFinal.HasValue)
-            query = query.Where(f => f.DataEmissao <= filter.DataFinal.Value);
+        {
+            var fim = DateTime.SpecifyKind(filter.DataFinal.Value.Date.AddDays(1), DateTimeKind.Utc);
+            query = query.Where(f => f.DataEmissao < fim);
+        }
 
         if (filter.Status.HasValue)
             query = query.Where(f => f.Status == filter.Status.Value);
