@@ -44,6 +44,9 @@ public class FaturaRepository : IFaturaRepository
     public void Update(Fatura fatura) =>
         _context.Faturas.Update(fatura);
 
+    public void AddItem(ItemFatura item) =>
+        _context.Add(item);
+
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default) =>
         await _context.SaveChangesAsync(cancellationToken);
 }

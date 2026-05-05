@@ -28,6 +28,7 @@ public sealed class AddItemFaturaHandler
             request.ValorUnitario,
             request.Justificativa);
 
+        _repository.AddItem(item);
         await _repository.SaveChangesAsync(cancellationToken);
 
         return Result<AddItemFaturaResponse>.Success(new AddItemFaturaResponse(
