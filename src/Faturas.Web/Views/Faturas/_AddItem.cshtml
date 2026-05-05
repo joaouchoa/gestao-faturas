@@ -1,0 +1,53 @@
+@model AddItemViewModel
+
+<form asp-action="AddItem" method="post" class="row g-3 align-items-end">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="FaturaId" />
+
+    <div class="col-md-4">
+        <label asp-for="Descricao" class="form-label"></label>
+        <input asp-for="Descricao" class="form-control" />
+        <span asp-validation-for="Descricao" class="text-danger small"></span>
+    </div>
+
+    <div class="col-md-2">
+        <label asp-for="Quantidade" class="form-label"></label>
+        <input asp-for="Quantidade" type="number" min="1" class="form-control" id="addItem_Quantidade" />
+        <span asp-validation-for="Quantidade" class="text-danger small"></span>
+    </div>
+
+    <div class="col-md-2">
+        <label asp-for="ValorUnitario" class="form-label"></label>
+        <input asp-for="ValorUnitario" type="number" step="0.01" min="0.01" class="form-control" id="addItem_ValorUnitario" />
+        <span asp-validation-for="ValorUnitario" class="text-danger small"></span>
+    </div>
+
+    <div class="col-md-3" id="addItem_JustificativaDiv" style="display:none">
+        <label asp-for="Justificativa" class="form-label">
+            Justificativa <span class="text-danger">*</span>
+        </label>
+        <input asp-for="Justificativa" class="form-control" />
+        <div class="form-text text-warning">Obrigatória para itens acima de R$ 1.000,00</div>
+    </div>
+
+    <div class="col-md-1">
+        <button type="submit" class="btn btn-success w-100">Adicionar</button>
+    </div>
+</form>
+
+<script>
+    (function () {
+        const qtd = document.getElementById('addItem_Quantidade');
+        const val = document.getElementById('addItem_ValorUnitario');
+        const div = document.getElementById('addItem_JustificativaDiv');
+
+        function check() {
+            const total = (parseFloat(qtd.value) || 0) * (parseFloat(val.value) || 0);
+            div.style.display = total > 1000 ? 'block' : 'none';
+        }
+
+        qtd.addEventListener('input', check);
+        val.addEventListener('input', check);
+        check();
+    })();
+</script>

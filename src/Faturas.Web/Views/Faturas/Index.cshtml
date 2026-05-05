@@ -1,0 +1,80 @@
+@model FaturaListViewModel
+@{
+    ViewData["Title"] = "Faturas";
+    var ptBR = new System.Globalization.CultureInfo("pt-BR");
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Faturas</h2>
+    <a asp-action="Create" class="btn btn-primary">+ Nova Fatura</a>
+</div>
+
+<form method="get" class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Cliente</label>
+                <input type="text" name="cliente" value="@Model.Filtro.Cliente" class="form-control" placeholder="Nome do cliente" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Data inicial</label>
+                <input type="date" name="dataInicial" value="@Model.Filtro.DataInicial?.ToString("yyyy-MM-dd")" class="form-control" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Data final</label>
+                <input type="date" name="dataFinal" value="@Model.Filtro.DataFinal?.ToString("yyyy-MM-dd")" class="form-control" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="Aberta"  selected="@(Model.Filtro.Status == "Aberta"  ? "selected" : null)">Aberta</option>
+                    <option value="Fechada" selected="@(Model.Filtro.Status == "Fechada" ? "selected" : null)">Fechada</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-outline-primary">Filtrar</button>
+                <a asp-action="Index" class="btn btn-outline-secondary">Limpar</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+@if (!Model.Faturas.Any())
+{
+    <div class="alert alert-info">Nenhuma fatura encontrada para os filtros selecionados.</div>
+}
+else
+{
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Número</th>
+                <th>Cliente</th>
+                <th>Emissão</th>
+                <th class="text-center">Itens</th>
+                <th class="text-end">Total</th>
+                <th class="text-center">Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var f in Model.Faturas)
+            {
+                <tr>
+                    <td><strong>@f.Numero</strong></td>
+                    <td>@f.NomeCliente</td>
+                    <td>@f.DataEmissao.ToString("dd/MM/yyyy")</td>
+                    <td class="text-center">@f.TotalItens</td>
+                    <td class="text-end">@f.ValorTotal.ToString("C", ptBR)</td>
+                    <td class="text-center">
+                        <span class="badge @(f.Status == "Aberta" ? "bg-success" : "bg-secondary")">@f.Status</span>
+                    </td>
+                    <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@f.Id" class="btn btn-sm btn-outline-primary">Ver detalhes</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

@@ -1,0 +1,68 @@
+@model CreateFaturaViewModel
+@{
+    ViewData["Title"] = "Nova Fatura";
+
+    var allErrors = ViewData.ModelState.Values
+        .SelectMany(v => v.Errors)
+        .Select(e => e.ErrorMessage)
+        .Where(m => !string.IsNullOrEmpty(m))
+        .ToList();
+}
+
+<h2 class="mb-4">Nova Fatura</h2>
+
+@if (allErrors.Any())
+{
+    <div class="alert alert-danger">
+        @if (allErrors.Count == 1)
+        {
+            @allErrors[0]
+        }
+        else
+        {
+            <ul class="mb-0">
+                @foreach (var msg in allErrors)
+                {
+                    <li>@msg</li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-7">
+        <form asp-action="Create" method="post">
+            @Html.AntiForgeryToken()
+
+            <div class="mb-3">
+                <label asp-for="Numero" class="form-label"></label>
+                <input asp-for="Numero" class="form-control" placeholder="FAT-000001" />
+                <span asp-validation-for="Numero" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="NomeCliente" class="form-label"></label>
+                <input asp-for="NomeCliente" class="form-control" />
+                <span asp-validation-for="NomeCliente" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="DataEmissao" class="form-label"></label>
+                <input type="date" id="DataEmissao" name="DataEmissao"
+                       value="@Model.DataEmissao.ToString("yyyy-MM-dd")"
+                       class="form-control" />
+                <span asp-validation-for="DataEmissao" class="text-danger small"></span>
+            </div>
+
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn btn-primary">Criar Fatura</button>
+                <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @await Html.PartialAsync("_ValidationScriptsPartial")
+}
