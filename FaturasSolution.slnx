@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Faturas.Api/Faturas.Api.csproj" />
+    <Project Path="src/Faturas.Application/Faturas.Application.csproj" />
+    <Project Path="src/Faturas.Domain/Faturas.Domain.csproj" />
+    <Project Path="src/Faturas.Infrastructure.Migrations/Faturas.Infrastructure.Migrations.csproj" />
+    <Project Path="src/Faturas.Infrastructure/Faturas.Infrastructure.csproj" />
+    <Project Path="src/Faturas.Web/Faturas.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Faturas.Application.Tests/Faturas.Application.Tests.csproj" />
+    <Project Path="tests/Faturas.Domain.Tests/Faturas.Domain.Tests.csproj" />
+    <Project Path="tests/Faturas.Integration.Tests/Faturas.Integration.Tests.csproj" />
+  </Folder>
+</Solution>
