@@ -8,8 +8,7 @@ public sealed class CreateFaturaValidator : AbstractValidator<CreateFaturaReques
     public CreateFaturaValidator()
     {
         RuleFor(x => x.Numero)
-            .NotEmpty().WithMessage(ApplicationErrorMessages.Fatura.NumeroObrigatorio)
-            .Matches(@"^FAT-\d{6}$").WithMessage(ApplicationErrorMessages.Fatura.NumeroFormatoInvalido);
+            .NotEmpty().WithMessage(ApplicationErrorMessages.Fatura.NumeroObrigatorio);
 
         RuleFor(x => x.NomeCliente)
             .NotEmpty().WithMessage(ApplicationErrorMessages.Fatura.NomeClienteObrigatorio)

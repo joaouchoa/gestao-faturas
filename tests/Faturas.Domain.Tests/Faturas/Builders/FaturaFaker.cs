@@ -11,7 +11,7 @@ public class FaturaFaker : Faker<Fatura>
     {
         CustomInstantiator(f =>
         {
-            var numero = $"FAT-{_counter++:D6}";
+            var numero = $"NF-{_counter++:D4}-{f.Random.AlphaNumeric(4).ToUpper()}";
             var nomeCliente = f.Person.FullName;
             var dataEmissao = f.Date.Recent(30).ToUniversalTime();
             return Fatura.Criar(numero, nomeCliente, dataEmissao);

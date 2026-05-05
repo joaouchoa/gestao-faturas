@@ -4,7 +4,6 @@ public static class FaturaErrors
 {
     public const string NomeClienteObrigatorio = "O nome do cliente é obrigatório.";
     public const string NumeroObrigatorio = "O número da fatura é obrigatório.";
-    public const string NumeroFormatoInvalido = "O número da fatura deve ter o formato FAT-XXXXXX (ex: FAT-000001).";
     public const string FaturaJaFechada = "Não é possível alterar uma fatura fechada.";
     public const string ItemNaoEncontrado = "Item não encontrado na fatura.";
     public const string JustificativaObrigatoriaAcimaDe1000 = "Itens acima de R$ 1.000,00 exigem justificativa.";

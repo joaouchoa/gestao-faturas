@@ -42,17 +42,6 @@ public class FaturaTests
            .WithMessage(FaturaErrors.NomeClienteObrigatorio);
     }
 
-    [Fact]
-    public void Criar_DeveLancar_QuandoNumeroFormatoInvalido()
-    {
-        // Act
-        Action act = () => Fatura.Criar("INVALIDO", "Cliente", DateTime.UtcNow);
-
-        // Assert
-        act.Should().Throw<DomainException>()
-           .WithMessage(FaturaErrors.NumeroFormatoInvalido);
-    }
-
     // ── Adicionar Item ────────────────────────────────────────────────────────
 
     [Fact]

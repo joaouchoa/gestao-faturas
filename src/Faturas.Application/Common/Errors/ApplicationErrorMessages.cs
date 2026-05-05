@@ -5,7 +5,6 @@ public static class ApplicationErrorMessages
     public static class Fatura
     {
         public const string NumeroObrigatorio          = "O número da fatura é obrigatório.";
-        public const string NumeroFormatoInvalido      = "O número da fatura deve ter o formato FAT-XXXXXX (ex: FAT-000001).";
         public const string NomeClienteObrigatorio     = "O nome do cliente é obrigatório.";
         public const string NomeClienteTamanhoMaximo   = "O nome do cliente deve ter no máximo 150 caracteres.";
         public const string DataEmissaoObrigatoria     = "A data de emissão é obrigatória.";
