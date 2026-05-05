@@ -87,7 +87,7 @@ public class ExceptionHandlingMiddleware
         context.Response.StatusCode  = statusCode;
 
         await context.Response.WriteAsync(
-            JsonSerializer.Serialize(problem, new JsonSerializerOptions
+            JsonSerializer.Serialize(problem, problem.GetType(), new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             }));
