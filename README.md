@@ -271,6 +271,8 @@ FaturasSolution.sln
 | 2026-05-06 | **`Faturas.Application.Tests`** — 30 testes de handlers e validators com NSubstitute + FluentAssertions + Bogus |
 | 2026-05-06 | **`Faturas.Integration.Tests`** — 15 testes E2E com WebApplicationFactory + Testcontainers.PostgreSql + DbUp |
 | 2026-05-06 | **Documentação técnica** — `docs/documentacao-tecnica-testes.md` (estratégia de testes, ferramentas, decisões) |
+| 2026-05-06 | **Seed de dados** — `0005_seed_dados_iniciais.sql` com 21 faturas e 42 itens para demonstração |
+| 2026-05-06 | **Docker** — `docker-compose.yml` (PostgreSQL + Migrations + API + MVC), Dockerfiles multi-stage, `.dockerignore` |
 
 ---
 

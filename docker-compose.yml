@@ -1,0 +1,61 @@
+services:
+
+  # ── Banco de dados ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: faturas
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d faturas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Migrations (roda uma vez e encerra) ───────────────────────────────────────
+  migrations:
+    build:
+      context: .
+      dockerfile: src/Faturas.Infrastructure.Migrations/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_CONN: "Host=postgres;Port=5432;Database=faturas;Username=postgres;Password=postgres"
+
+  # ── API REST ──────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: src/Faturas.Api/Dockerfile
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    ports:
+      - "5127:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=faturas;Username=postgres;Password=postgres"
+
+  # ── MVC (front-end) ───────────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: src/Faturas.Web/Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "5194:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://+:8080"
+      ApiBaseUrl: "http://api:8080"
+
+volumes:
+  postgres_data:
