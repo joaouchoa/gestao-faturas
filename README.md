@@ -56,80 +56,42 @@ O projeto segue **Clean Architecture** com separação de camadas, **Domain-Driv
 
 ## Como executar
 
-### Pré-requisitos
+### Pré-requisito
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (para o PostgreSQL)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
-### 1. Banco de dados (PostgreSQL via Docker)
-
-```bash
-docker run -d \
-  --name faturas-postgres \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=faturas \
-  -p 5432:5432 \
-  postgres:16-alpine
-```
-
-> **Alternativa:** use o `docker-compose.yml` na raiz do repositório — veja a seção **Docker Compose** abaixo.
-
-### 2. Rodar as migrations (DbUp)
+### Um único comando
 
 ```bash
-dotnet run --project src/Faturas.Infrastructure.Migrations \
-  -- "Host=localhost;Port=5432;Database=faturas;Username=postgres;Password=postgres"
+docker compose up --build
 ```
 
-As migrations são scripts SQL versionados embarcados no assembly (`0001` → `0004`). O DbUp os aplica em ordem e é idempotente — pode ser executado múltiplas vezes com segurança.
+Isso é tudo. O Compose sobe automaticamente, na ordem correta:
 
-### 3. Rodar a API
+1. **PostgreSQL** — aguarda ficar saudável
+2. **Migrations** — aplica os scripts SQL e encerra
+3. **API** — sobe após as migrations concluírem
+4. **MVC** — sobe após a API estar disponível
+
+### URLs após a inicialização
+
+| Serviço | URL |
+|---------|-----|
+| MVC (interface) | `http://localhost:5194` |
+| API REST | `http://localhost:5127` |
+| Swagger UI | `http://localhost:5127/swagger` |
+
+### Parar o ambiente
 
 ```bash
-dotnet run --project src/Faturas.Api
+docker compose down
 ```
 
-| Protocolo | URL |
-|-----------|-----|
-| HTTPS | `https://localhost:7159` |
-| HTTP | `http://localhost:5127` |
-| Swagger UI | `https://localhost:7159/swagger` |
-
-A string de conexão pode ser sobrescrita via variável de ambiente:
+Para parar e apagar os dados do banco:
 
 ```bash
-ConnectionStrings__Postgres="Host=...;..." dotnet run --project src/Faturas.Api
+docker compose down -v
 ```
-
-### 4. Rodar o MVC
-
-A API deve estar em execução antes de iniciar o MVC.
-
-```bash
-dotnet run --project src/Faturas.Web
-```
-
-| Protocolo | URL |
-|-----------|-----|
-| HTTPS | `https://localhost:7238` |
-| HTTP | `http://localhost:5194` |
-
-A URL base da API é configurada em `src/Faturas.Web/appsettings.json`:
-
-```json
-{
-  "ApiBaseUrl": "https://localhost:7159"
-}
-```
-
-### Docker Compose
-
-```bash
-docker compose up -d
-```
-
-Sobe o PostgreSQL configurado e pronto para uso (ver `docker-compose.yml` na raiz).
 
 ---
 
@@ -171,7 +133,7 @@ dotnet test tests/Faturas.Integration.Tests
 
 ## Endpoints da API
 
-Base URL: `https://localhost:7159/api`
+Base URL: `http://localhost:5127/api`
 
 | Método | Rota | Caso de Uso | Retornos possíveis |
 |--------|------|-------------|-------------------|
