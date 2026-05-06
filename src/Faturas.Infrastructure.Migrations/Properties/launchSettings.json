@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Faturas.Infrastructure.Migrations": {
+      "commandName": "Project",
+      "commandLineArgs": "Host=localhost;Port=5432;Database=faturas;Username=postgres;Password=postgres"
+    }
+  }
+}
