@@ -10,8 +10,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Bogus" Version="35.6.1" />
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="dbup-postgresql" Version="5.0.37" />
+    <PackageReference Include="FluentAssertions" Version="6.12.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="3.10.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
   </ItemGroup>
@@ -20,8 +25,15 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Scripts SQL do DbUp linkados como embedded resources -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\src\Faturas.Infrastructure.Migrations\Scripts\*.sql"
+                      Link="Scripts\%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Faturas.Api\Faturas.Api.csproj" />
+    <ProjectReference Include="..\..\src\Faturas.Domain\Faturas.Domain.csproj" />
     <ProjectReference Include="..\..\src\Faturas.Infrastructure\Faturas.Infrastructure.csproj" />
   </ItemGroup>
 
