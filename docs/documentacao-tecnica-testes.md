@@ -1,4 +1,4 @@
-# Documentação Técnica — Camada de Testes (`Faturas.Domain.Tests` e `Faturas.Application.Tests`)
+# Documentação Técnica — Camada de Testes (`Faturas.Domain.Tests`, `Faturas.Application.Tests` e `Faturas.Integration.Tests`)
 
 > **Objetivo deste documento:** explicar em profundidade a estratégia de testes adotada no projeto, detalhando cada decisão de design, ferramenta e padrão utilizado. O leitor entenderá não apenas *o que* os testes fazem, mas *por que* foram estruturados desta forma — e como essa estrutura se conecta à arquitetura geral do sistema.
 
@@ -30,10 +30,11 @@ A pirâmide de testes é um guia clássico que define a proporção ideal entre 
        ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ (muitos, rápidos, baratos)
 ```
 
-Este projeto implementa dois níveis:
+Este projeto implementa os três níveis:
 
 - **`Faturas.Domain.Tests`** — base da pirâmide. Testes unitários puros do domínio. Sem mocks, sem banco de dados, sem infraestrutura. Apenas regras de negócio.
 - **`Faturas.Application.Tests`** — camada intermediária. Testa os Handlers e Validators da Application. Usa mocks do repositório para isolar o banco de dados.
+- **`Faturas.Integration.Tests`** — topo da pirâmide. Sobe a API real em memória (`WebApplicationFactory`) contra um PostgreSQL real em container (`Testcontainers`). Valida o fluxo HTTP end-to-end.
 
 > **Importante:** os testes de domínio NÃO precisam de mocks porque o domínio não tem dependências externas. Essa é uma das grandes vantagens da Clean Architecture — a camada mais crítica do sistema é também a mais fácil de testar.
 
@@ -52,23 +53,36 @@ tests/
 │   │   └── ItemFaturaTests.cs             ← Testes das invariantes de ItemFatura
 │   └── Faturas.Domain.Tests.csproj
 │
-└── Faturas.Application.Tests/             ← Testes de Handlers e Validators (com mocks)
+├── Faturas.Application.Tests/             ← Testes de Handlers e Validators (com mocks)
+│   ├── Common/
+│   │   └── Fakers/
+│   │       └── FaturaFaker.cs             ← Faker reutilizável para Application tests
+│   ├── Features/
+│   │   └── Faturas/
+│   │       ├── Commands/
+│   │       │   ├── CreateFaturaHandlerTests.cs
+│   │       │   ├── CreateFaturaValidatorTests.cs
+│   │       │   ├── AddItemFaturaHandlerTests.cs
+│   │       │   ├── AddItemFaturaValidatorTests.cs
+│   │       │   └── FecharFaturaHandlerTests.cs
+│   │       └── Queries/
+│   │           ├── GetFaturaByIdHandlerTests.cs
+│   │           ├── ListFaturasHandlerTests.cs
+│   │           └── ListFaturasValidatorTests.cs
+│   └── Faturas.Application.Tests.csproj
+│
+└── Faturas.Integration.Tests/             ← Testes E2E (API real + PostgreSQL real)
+    ├── Infrastructure/
+    │   ├── IntegrationWebApplicationFactory.cs  ← Factory + Testcontainers + DbUp
+    │   └── FaturasCollection.cs                 ← xUnit collection fixture
     ├── Common/
-    │   └── Fakers/
-    │       └── FaturaFaker.cs             ← Faker reutilizável para Application tests
+    │   └── Dtos/
+    │       └── ResponseDtos.cs            ← Records para desserialização JSON
     ├── Features/
     │   └── Faturas/
-    │       ├── Commands/
-    │       │   ├── CreateFaturaHandlerTests.cs
-    │       │   ├── CreateFaturaValidatorTests.cs
-    │       │   ├── AddItemFaturaHandlerTests.cs
-    │       │   ├── AddItemFaturaValidatorTests.cs
-    │       │   └── FecharFaturaHandlerTests.cs
-    │       └── Queries/
-    │           ├── GetFaturaByIdHandlerTests.cs
-    │           ├── ListFaturasHandlerTests.cs
-    │           └── ListFaturasValidatorTests.cs
-    └── Faturas.Application.Tests.csproj
+    │       ├── FaturasFluxoCompletoTests.cs     ← Fluxo end-to-end completo
+    │       └── FaturasEndpointTests.cs          ← Cenários individuais por endpoint
+    └── Faturas.Integration.Tests.csproj
 ```
 
 ---
@@ -93,6 +107,16 @@ tests/
 | `NSubstitute` | 5.1.0 | Biblioteca de mocking — cria implementações falsas de interfaces (ex: `IFaturaRepository`) |
 
 > **Por que NSubstitute e não Moq?** NSubstitute tem sintaxe mais fluente e menos verbosa. `Substitute.For<IFaturaRepository>()` vs `new Mock<IFaturaRepository>()`. Para verificação de chamadas: `repository.Received(1).AddAsync(...)` vs `mock.Verify(r => r.AddAsync(...), Times.Once())`. O resultado é o mesmo, o código fica mais legível.
+
+### 3.3 Pacotes adicionais do `Faturas.Integration.Tests`
+
+| Pacote | Versão | Papel |
+|--------|--------|-------|
+| `Microsoft.AspNetCore.Mvc.Testing` | 8.0.0 | Sobe a API ASP.NET Core em memória via `WebApplicationFactory<Program>`, sem necessidade de servidor HTTP real |
+| `Testcontainers.PostgreSql` | 3.10.0 | Sobe um container Docker com PostgreSQL real durante a execução dos testes. Garante isolamento total do banco de dados |
+| `dbup-postgresql` | 5.0.37 | Aplica os scripts SQL de migração contra o banco do container antes dos testes rodarem |
+
+> **Por que Testcontainers e não SQLite em memória?** SQLite não é PostgreSQL. Queries com `LIMIT/OFFSET`, tipos como `UUID`, `TIMESTAMPTZ` e `NUMERIC`, e o comportamento de transações podem diferir. Os Integration Tests precisam rodar contra o banco real para que sejam confiáveis. Testcontainers garante isso de forma automatizada — sem depender de um servidor PostgreSQL pré-instalado.
 
 ---
 
@@ -721,25 +745,252 @@ public async Task Validar_DeveFalhar_QuandoDataInicialMaiorQueDataFinal()
 
 ---
 
-## 7. Relação entre os Tipos de Teste
+## 7. `Faturas.Integration.Tests` em Profundidade
 
-A tabela abaixo mostra o que cada tipo de teste cobre e o que ele *não* cobre:
+### 7.1 A Estratégia: API Real + Banco Real
 
-| O que é testado | Domain.Tests | Application.Tests | Integration.Tests* |
-|----------------|:---:|:---:|:---:|
-| Regras de negócio (guards, invariantes) | ✅ | — | — |
-| Orquestração do Handler (fluxo) | — | ✅ | — |
-| Validação de entrada (Validators) | — | ✅ | — |
-| Mapeamento de resposta (Response) | — | ✅ | — |
-| Repositório com banco real | — | — | ✅ |
-| API HTTP (status codes, headers) | — | — | ✅ |
-| Fluxo end-to-end completo | — | — | ✅ |
+Os Integration Tests são o único nível que testa a **pilha completa** do sistema:
 
-*Integration.Tests está previsto como bônus no PLAN, ainda não implementado.
+```
+Teste HTTP
+   │
+   ▼
+HttpClient ──▶ ASP.NET Core (em memória)
+                    │
+                    ▼
+              ExceptionHandlingMiddleware
+                    │
+                    ▼
+              FaturasController
+                    │
+                    ▼
+              MediatR Pipeline
+              (ValidationBehavior → LoggingBehavior → Handler)
+                    │
+                    ▼
+              IFaturaRepository (implementação real)
+                    │
+                    ▼
+              EF Core + Npgsql
+                    │
+                    ▼
+              PostgreSQL (container Docker via Testcontainers)
+```
+
+Nenhuma camada é simulada — tudo é real. Isso garante que o sistema funciona como um todo, não apenas que cada peça funciona isoladamente.
 
 ---
 
-## 8. Convenções de Nomenclatura dos Testes
+### 7.2 `IntegrationWebApplicationFactory`
+
+É o coração da infraestrutura de Integration Tests. Herda de `WebApplicationFactory<Program>` e implementa `IAsyncLifetime` para gerenciar o ciclo de vida do container.
+
+```csharp
+public class IntegrationWebApplicationFactory
+    : WebApplicationFactory<Program>, IAsyncLifetime
+{
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
+        .WithImage("postgres:16-alpine")
+        .Build();
+
+    public async Task InitializeAsync()
+    {
+        await _container.StartAsync();  // sobe o container
+        RunMigrations();                // aplica os scripts DbUp
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.ConfigureServices(services =>
+        {
+            // Remove o DbContext registrado com a connection string de produção
+            var descriptor = services.SingleOrDefault(
+                d => d.ServiceType == typeof(DbContextOptions<FaturasDbContext>));
+            if (descriptor is not null) services.Remove(descriptor);
+
+            // Registra com a connection string do container de teste
+            services.AddDbContext<FaturasDbContext>(options =>
+                options.UseNpgsql(_container.GetConnectionString()));
+        });
+
+        builder.UseEnvironment("Testing");
+    }
+
+    private void RunMigrations()
+    {
+        var upgrader = DeployChanges.To
+            .PostgresqlDatabase(_container.GetConnectionString())
+            .WithScriptsEmbeddedInAssembly(Assembly.GetExecutingAssembly())
+            .LogToConsole()
+            .Build();
+
+        var result = upgrader.PerformUpgrade();
+        if (!result.Successful)
+            throw new InvalidOperationException($"Migração falhou: {result.Error}");
+    }
+
+    public new async Task DisposeAsync()
+    {
+        await _container.DisposeAsync();
+        await base.DisposeAsync();
+    }
+}
+```
+
+**`ConfigureServices` e remoção do DbContext:** O `AddInfrastructure(configuration)` já registrou um `DbContextOptions<FaturasDbContext>` com a connection string do `appsettings.json` (que aponta para um PostgreSQL real de desenvolvimento). Para sobrescrever, removemos esse descriptor e registramos um novo apontando para o container de teste.
+
+**Por que `builder.UseEnvironment("Testing")`?** Garante que `app.Environment.IsDevelopment()` retorna `false` dentro dos testes, evitando que o Swagger tente ser configurado com comportamentos específicos de desenvolvimento.
+
+**`RunMigrations()`:** Os scripts SQL do `Faturas.Infrastructure.Migrations/Scripts/` são linkados como **embedded resources** no `.csproj` do projeto de testes:
+
+```xml
+<EmbeddedResource Include="..\..\src\Faturas.Infrastructure.Migrations\Scripts\*.sql"
+                  Link="Scripts\%(Filename)%(Extension)" />
+```
+
+Isso embutе os 4 scripts no assembly do projeto de testes. O DbUp os aplica ao banco do container antes de qualquer teste rodar, criando as tabelas `faturas` e `itens_fatura`.
+
+---
+
+### 7.3 `FaturasCollection` — Compartilhamento do Container
+
+```csharp
+[CollectionDefinition(FaturasCollection.Name)]
+public class FaturasCollection : ICollectionFixture<IntegrationWebApplicationFactory>
+{
+    public const string Name = "Faturas Integration Tests";
+}
+```
+
+**O que faz:** Define uma coleção xUnit. Todas as classes de teste decoradas com `[Collection(FaturasCollection.Name)]` compartilham **uma única instância** da `IntegrationWebApplicationFactory`.
+
+**Por que compartilhar?** Subir um container Docker leva 3-5 segundos. Se cada classe de teste criasse seu próprio container, uma suíte com 10 classes levaria 30-50 segundos só em startup. Compartilhando uma instância, o container sobe uma vez e é reutilizado por todos os testes da coleção.
+
+**Isolamento sem reiniciar o container:** Cada teste cria seus próprios dados com UUIDs únicos (gerados pelo domínio via `Guid.NewGuid()`). Como os IDs nunca colidem, testes rodando em paralelo não interferem uns nos outros.
+
+---
+
+### 7.4 `public partial class Program { }` — Por que é Necessário
+
+Em .NET 6+, o `Program.cs` com top-level statements gera automaticamente uma classe `Program`, mas ela é **`internal`** por padrão. O `WebApplicationFactory<Program>` referencia esse tipo como parâmetro genérico a partir do projeto de testes — que é um assembly diferente.
+
+Sem a declaração `public partial class Program {}` ao final do `Program.cs`, o compilador retorna:
+
+```
+error CS0122: 'Program' is inaccessible due to its protection level
+```
+
+A solução é adicionar ao final do `Program.cs`:
+
+```csharp
+public partial class Program { }
+```
+
+O modificador `partial` permite fundir essa declaração com a classe gerada pelos top-level statements, tornando-a `public` e acessível ao projeto de testes.
+
+---
+
+### 7.5 `ResponseDtos` — Records de Desserialização
+
+```csharp
+internal record FaturaDto(Guid Id, string Numero, string NomeCliente, DateTime DataEmissao, string Status, decimal ValorTotal);
+internal record FaturaDetailDto(..., List<ItemDetailDto> Itens);
+internal record ItemDetailDto(Guid Id, string Descricao, int Quantidade, decimal ValorUnitario, decimal ValorTotalItem, string? Justificativa);
+internal record ItemAddedDto(Guid ItemId, Guid FaturaId, ...);
+internal record FecharDto(Guid Id, string Status);
+internal record PagedFaturasDto(List<FaturaDto> Itens, int TotalRegistros, int Pagina, int TamanhoPagina, int TotalPaginas);
+```
+
+**Por que DTOs próprios e não usar os records da Application?** Os records da Application (ex: `CreateFaturaResponse`) existem e são acessíveis — mas criar DTOs específicos para os testes os torna independentes da implementação interna. Se o nome de uma propriedade da Response mudar internamente, o teste de integração continua funcionando enquanto o contrato HTTP (JSON) não mudar.
+
+**Por que `PropertyNameCaseInsensitive = true`?** O ASP.NET Core serializa JSON com camelCase (`valorTotal`), mas os records C# têm propriedades PascalCase (`ValorTotal`). A opção case-insensitive permite que `ReadFromJsonAsync<T>` desserialize corretamente sem precisar de atributos `[JsonPropertyName]` nos DTOs de teste.
+
+```csharp
+private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+var fatura = await response.Content.ReadFromJsonAsync<FaturaDto>(JsonOptions);
+```
+
+---
+
+### 7.6 `FaturasFluxoCompletoTests` — O Cenário Principal
+
+Este arquivo implementa o fluxo end-to-end descrito no PLAN (seção 9.5):
+
+**`FluxoCompleto_CriarAdicionarItemFechar_DeveExecutarComSucesso`:**
+
+O teste mais importante do projeto. Valida 7 passos em sequência usando um PostgreSQL real:
+
+| Passo | Ação | Verificação |
+|-------|------|-------------|
+| 1 | `POST /api/faturas` | 201 Created, status = "Aberta", total = 0 |
+| 2 | `POST /api/faturas/{id}/itens` (R$ 800) | 201 Created, ValorTotalItem = 800 |
+| 3 | `POST /api/faturas/{id}/itens` (2 × R$ 3.500 + justificativa) | 201 Created, ValorTotalItem = 7.000 |
+| 4 | `GET /api/faturas/{id}` | 200 OK, total = 7.800, itens.Count = 2 |
+| 5 | `PUT /api/faturas/{id}/fechar` | 200 OK, status = "Fechada" |
+| 6 | `GET /api/faturas/{id}` | 200 OK, status = "Fechada" (persiste no banco) |
+| 7 | `POST /api/faturas/{id}/itens` | **422 Unprocessable Entity** (RN-5/6) |
+
+**Por que um teste com 7 passos e não 7 testes separados?** O fluxo é sequencial — o passo 5 depende do passo 1. Separar em testes distintos exigiria que cada um recriasse o estado anterior, duplicando código e tornando os testes menos representativos do uso real do sistema.
+
+**`AddItem_DeveRetornar422_QuandoValorAcimaDe1000SemJustificativa`:**
+
+Valida a RN-7 através da pilha completa:
+1. O Controller recebe o request
+2. O `ValidationBehavior` passa (o Validator de `AddItemFatura` não valida o valor unitário)
+3. O Handler busca a fatura no banco real
+4. `fatura.AdicionarItem(...)` lança `DomainException`
+5. O `ExceptionHandlingMiddleware` converte para `422 Unprocessable Entity`
+
+Este teste confirma que a regra de negócio não só é implementada no domínio, mas que o middleware a mapeia corretamente para o status HTTP.
+
+---
+
+### 7.7 `FaturasEndpointTests` — Cenários Individuais
+
+Testa cada endpoint de forma independente, cobrindo os principais cenários de sucesso e erro:
+
+| Teste | Endpoint | Status esperado | O que valida |
+|-------|----------|-----------------|--------------|
+| `CriarFatura_DeveRetornar201_QuandoDadosValidos` | POST /api/faturas | 201 | Caminho feliz completo com Location header |
+| `CriarFatura_DeveRetornar400_QuandoNumeroVazio` | POST /api/faturas | 400 | ValidationBehavior + ExceptionMiddleware |
+| `CriarFatura_DeveRetornar400_QuandoNomeClienteVazio` | POST /api/faturas | 400 | Idem |
+| `GetFatura_DeveRetornar200_QuandoFaturaExiste` | GET /api/faturas/{id} | 200 | Leitura correta do banco |
+| `GetFatura_DeveRetornar404_QuandoFaturaNaoEncontrada` | GET /api/faturas/{id} | 404 | MapFailure do Controller |
+| `ListarFaturas_DeveRetornar200_ComEstruturaDePaginacao` | GET /api/faturas | 200 | Estrutura paginada completa |
+| `ListarFaturas_DeveRetornar400_QuandoPeriodoInvalido` | GET /api/faturas | 400 | Validator de datas |
+| `AddItem_DeveRetornar404_QuandoFaturaNaoEncontrada` | POST /api/faturas/{id}/itens | 404 | Fatura inexistente |
+| `AddItem_DeveRetornar400_QuandoDescricaoMenorQueMinimo` | POST /api/faturas/{id}/itens | 400 | Validator de item |
+| `Fechar_DeveRetornar404_QuandoFaturaNaoEncontrada` | PUT /api/faturas/{id}/fechar | 404 | Fatura inexistente |
+| `Fechar_DeveRetornar200_QuandoFaturaAberta` | PUT /api/faturas/{id}/fechar | 200 | Status muda para Fechada |
+
+**`GerarNumero()`:** Cada teste cria suas próprias faturas com números únicos baseados em `Guid.NewGuid()`. O banco tem uma constraint `UNIQUE` em `numero` — sem isso, testes paralelos poderiam gerar conflitos:
+
+```csharp
+private static string GerarNumero() =>
+    $"INT-{Guid.NewGuid().ToString()[..8].ToUpper()}";
+// Exemplo: "INT-A1B2C3D4"
+```
+
+---
+
+## 8. Relação entre os Tipos de Teste
+
+A tabela abaixo mostra o que cada tipo de teste cobre e o que ele *não* cobre:
+
+| O que é testado | Domain.Tests | Application.Tests | Integration.Tests |
+|----------------|:---:|:---:|:---:|
+| Regras de negócio (guards, invariantes) | ✅ | — | — |
+| Orquestração do Handler (fluxo) | — | ✅ | — |
+| Validação de entrada (Validators) | — | ✅ | ✅ |
+| Mapeamento de resposta (Response) | — | ✅ | ✅ |
+| Repositório com banco real | — | — | ✅ |
+| API HTTP (status codes, headers) | — | — | ✅ |
+| Middleware de exceções | — | — | ✅ |
+| Fluxo end-to-end completo | — | — | ✅ |
+
+---
+
+## 9. Convenções de Nomenclatura dos Testes
 
 Todos os testes seguem o padrão:
 
@@ -757,7 +1008,11 @@ Exemplos:
 
 ---
 
-## 9. Como Executar os Testes
+## 10. Como Executar os Testes
+
+### Pré-requisito para Integration Tests
+
+O `Faturas.Integration.Tests` requer **Docker** instalado e em execução (Docker Desktop no Windows/Mac, ou Docker Engine no Linux). O Testcontainers gerencia o container automaticamente — não é necessário rodar nenhum comando Docker manualmente.
 
 ### Executar todos os testes da Solution
 
@@ -776,6 +1031,14 @@ dotnet test tests/Faturas.Domain.Tests/
 ```bash
 dotnet test tests/Faturas.Application.Tests/
 ```
+
+### Executar apenas os testes de Integration
+
+```bash
+dotnet test tests/Faturas.Integration.Tests/
+```
+
+> Os Integration Tests levam ~8-10 segundos na primeira execução (pull da imagem `postgres:16-alpine` + startup do container). Nas execuções seguintes, a imagem já está em cache e o tempo cai para ~3-5 segundos.
 
 ### Executar com relatório de cobertura (coverlet)
 
@@ -800,12 +1063,16 @@ Application.Tests:
   Aprovados: 30 de 30
   Tempo: ~900ms
 
-Total: 47 testes aprovados, 0 falhas
+Integration.Tests:
+  Aprovados: 15 de 15
+  Tempo: ~8s (inclui startup do container PostgreSQL)
+
+Total: 62 testes aprovados, 0 falhas
 ```
 
 ---
 
-## 10. Diagrama da Estratégia de Testes
+## 11. Diagrama da Estratégia de Testes
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -824,10 +1091,8 @@ Total: 47 testes aprovados, 0 falhas
 │  │  │Faker        │    └──────────────────────────┘   │                     │
 │  │  └─────────────┘    ┌──────────────────────────┐   │                     │
 │  │                     │ ItemFaturaTests           │   │                     │
-│  │                     │ ─────────────────────    │   │                     │
-│  │                     │ Descrição (2 casos)      │   │                     │
-│  │                     │ Quantidade/Valor (2)     │   │                     │
-│  │                     │ Cálculo ValorTotalItem   │   │                     │
+│  │                     │ Descrição (2) · Qtd (2)  │   │                     │
+│  │                     │ Cálculo ValorTotalItem    │   │                     │
 │  │                     └──────────────────────────┘   │                     │
 │  └─────────────────────────────────────────────────────┘                     │
 │                                                                              │
@@ -836,39 +1101,87 @@ Total: 47 testes aprovados, 0 falhas
 │  │                                                     │                     │
 │  │  ┌─────────────┐    ┌─────────────────────────┐    │                     │
 │  │  │ FaturaFaker │───▶│ Handlers Tests          │    │◀── IFaturaRepository │
-│  │  │ (Bogus)     │    │ ──────────────────────  │    │    mockado com       │
-│  │  └─────────────┘    │ CreateFatura (1 caso)   │    │    NSubstitute       │
-│  │                     │ AddItemFatura (2 casos)  │    │                     │
-│  │  ┌─────────────┐    │ FecharFatura (2 casos)  │    │                     │
-│  │  │NSubstitute  │───▶│ GetFaturaById (2 casos) │    │                     │
-│  │  │IFatura      │    │ ListFaturas (3 casos)   │    │                     │
-│  │  │Repository   │    └─────────────────────────┘    │                     │
-│  │  └─────────────┘    ┌─────────────────────────┐    │                     │
-│  │                     │ Validators Tests         │    │                     │
-│  │                     │ ──────────────────────   │    │                     │
-│  │                     │ CreateFatura (5 casos)   │    │                     │
-│  │                     │ AddItemFatura (7 casos)  │    │                     │
-│  │                     │ ListFaturas (3 casos)    │    │                     │
+│  │  │ (Bogus)     │    │ CreateFatura (1)         │    │    mockado com       │
+│  │  └─────────────┘    │ AddItemFatura (2)        │    │    NSubstitute       │
+│  │                     │ FecharFatura (2)         │    │                     │
+│  │  ┌─────────────┐    │ GetFaturaById (2)        │    │                     │
+│  │  │NSubstitute  │───▶│ ListFaturas (3)          │    │                     │
+│  │  │IFatura      │    └─────────────────────────┘    │                     │
+│  │  │Repository   │    ┌─────────────────────────┐    │                     │
+│  │  └─────────────┘    │ Validators Tests         │    │                     │
+│  │                     │ CreateFatura (5)         │    │                     │
+│  │                     │ AddItemFatura (7)        │    │                     │
+│  │                     │ ListFaturas (3)          │    │                     │
 │  │                     └─────────────────────────┘    │                     │
 │  └─────────────────────────────────────────────────────┘                     │
 │                                                                              │
-│  Total: 47 testes  ·  0 falhas  ·  Execução < 1 segundo                    │
+│  ┌─────────────────────────────────────────────────────┐                     │
+│  │           Faturas.Integration.Tests                 │                     │
+│  │                                                     │                     │
+│  │  ┌──────────────────────────────────────────────┐   │                     │
+│  │  │  IntegrationWebApplicationFactory            │   │◀── API real         │
+│  │  │  ─────────────────────────────────────────   │   │    EF Core real     │
+│  │  │  PostgreSqlContainer (Testcontainers)        │   │    PostgreSQL real  │
+│  │  │  DbUp migrations (scripts embedded)          │   │    (Docker)         │
+│  │  │  WebApplicationFactory<Program>              │   │                     │
+│  │  └──────────────────┬───────────────────────────┘   │                     │
+│  │                     │                               │                     │
+│  │  ┌──────────────────▼───────────────────────────┐   │                     │
+│  │  │  FaturasFluxoCompletoTests (3 testes)        │   │                     │
+│  │  │  ─────────────────────────────────────────   │   │                     │
+│  │  │  Fluxo completo (7 passos HTTP)              │   │                     │
+│  │  │  Item > 1000 sem justificativa → 422         │   │                     │
+│  │  │  Item > 1000 com justificativa → 201         │   │                     │
+│  │  └──────────────────────────────────────────────┘   │                     │
+│  │  ┌──────────────────────────────────────────────┐   │                     │
+│  │  │  FaturasEndpointTests (11 testes)            │   │                     │
+│  │  │  ─────────────────────────────────────────   │   │                     │
+│  │  │  POST criar (201, 400×2)                     │   │                     │
+│  │  │  GET por ID (200, 404)                       │   │                     │
+│  │  │  GET listar (200, 400)                       │   │                     │
+│  │  │  POST item (404, 400)                        │   │                     │
+│  │  │  PUT fechar (200, 404)                       │   │                     │
+│  │  └──────────────────────────────────────────────┘   │                     │
+│  └─────────────────────────────────────────────────────┘                     │
+│                                                                              │
+│  Total: 62 testes  ·  0 falhas  ·  Domain+App < 1s  ·  Integration ~8s    │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 11. Resumo das Decisões Técnicas
+## 12. Resumo das Decisões Técnicas
+
+### 12.1 Decisões comuns a todas as suítes
 
 | Decisão | Alternativa | Por que escolhemos assim |
 |---------|-------------|--------------------------|
 | xUnit como framework | MSTest, NUnit | Padrão de mercado para .NET moderno. Melhor integração com `dotnet test` e ecossistema open source |
 | FluentAssertions | `Assert.Equal(...)` nativo | Mensagens de erro mais descritivas em falhas. Sintaxe fluente mais legível e próxima de linguagem natural |
 | Bogus para dados fake | Strings hardcodadas | Dados aleatórios revelam bugs que dados fixos não revelariam. Evita acoplamento acidental com valores específicos |
-| NSubstitute para mocking | Moq | Sintaxe mais fluente e menos verbosa. `Received(1)` vs `Verify(..., Times.Once())` |
 | AAA em todos os testes | Sem separação de fases | Força clareza estrutural. Facilita diagnóstico de falhas — se o erro está no Arrange, Act ou Assert |
 | `[Theory]` para variações | Métodos duplicados | DRY (Don't Repeat Yourself). Um método, múltiplos conjuntos de dados. Fácil adicionar novas variações |
+
+### 12.2 Decisões do `Faturas.Domain.Tests` e `Faturas.Application.Tests`
+
+| Decisão | Alternativa | Por que escolhemos assim |
+|---------|-------------|--------------------------|
+| NSubstitute para mocking | Moq | Sintaxe mais fluente e menos verbosa. `Received(1)` vs `Verify(..., Times.Once())` |
 | Constantes do domínio nos asserts | Strings inline nos testes | Se a mensagem de erro mudar, os testes refletem automaticamente. Sem string "mágica" duplicada |
 | Verificar chamadas ao repositório | Só verificar retorno | O retorno correto não garante que a persistência foi chamada. Um Handler pode retornar sucesso sem salvar nada |
 | `FaturaFaker` replicado em App.Tests | Referência ao Domain.Tests | Projetos de teste não se referenciam entre si. Independência total das suítes de teste |
 | Construtor de teste para mock + handler | Método `Setup` (MSTest) | xUnit cria nova instância por método de teste — mocks sempre limpos, sem estado residual entre testes |
+
+### 12.3 Decisões do `Faturas.Integration.Tests`
+
+| Decisão | Alternativa | Por que escolhemos assim |
+|---------|-------------|--------------------------|
+| Testcontainers.PostgreSql (Docker real) | SQLite in-memory | SQLite não suporta recursos do PostgreSQL usados na aplicação (tipos, constraints). Um banco diferente em teste não valida o comportamento real em produção |
+| `WebApplicationFactory<Program>` | Subir o servidor manualmente | Forma idiomática do ASP.NET Core para testes de integração. Reutiliza toda a pipeline de middleware, filtros e roteamento da aplicação real |
+| `ICollectionFixture` + `[Collection]` | Nova instância por classe | O container Docker é caro para subir. Compartilhá-lo entre todas as classes da suíte reduz o tempo total de ~15 s para ~5 s adicionais |
+| `public partial class Program {}` em `Program.cs` | Projeto de teste como referência interna | Top-level statements geram a classe `Program` como `internal`. O `partial` a torna acessível à assembly de teste sem quebrar a estrutura do projeto |
+| SQL scripts como `EmbeddedResource` no projeto de teste | Referenciar o projeto `Faturas.Infrastructure.Migrations` | O projeto de migrações é `OutputType=Exe` — não pode ser referenciado. Vincular os scripts via `<EmbeddedResource Link="...">` embute os arquivos SQL na DLL de teste e o DbUp os executa em ordem |
+| DbUp para rodar migrações no container | EF Core `Database.Migrate()` | A aplicação usa DbUp puro (sem EF Migrations). O teste replica exatamente o mecanismo real de migração, eliminando divergências entre ambiente de teste e produção |
+| `ResponseDtos` internos no projeto de teste | Reutilizar DTOs da Application | Os DTOs de resposta da API são detalhes de serialização HTTP. Mantê-los no projeto de teste isola a suíte de integração de mudanças internas da Application layer |
+| `GerarNumero()` com UUID | Número fixo hardcodado | A tabela tem `UNIQUE` na coluna `Numero`. Testes paralelos ou sequenciais com o mesmo banco falhariam por violação de constraint |
+| `ConfigureServices` sobrescreve `DbContext` | Variável de ambiente com connection string | Abordagem programática mais segura — garante que o DbContext sempre aponte para o container do teste, independente de variáveis de ambiente presentes na máquina |
