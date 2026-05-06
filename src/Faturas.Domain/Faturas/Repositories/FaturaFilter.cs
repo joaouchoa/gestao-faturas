@@ -4,5 +4,7 @@ public record FaturaFilter(
     string? NomeCliente = null,
     DateTime? DataInicial = null,
     DateTime? DataFinal = null,
-    StatusFatura? Status = null
+    StatusFatura? Status = null,
+    int Pagina = 1,
+    int TamanhoPagina = 10
 );

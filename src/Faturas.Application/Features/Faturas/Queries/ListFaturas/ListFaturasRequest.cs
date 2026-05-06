@@ -7,5 +7,7 @@ public sealed record ListFaturasRequest(
     string? NomeCliente,
     DateTime? DataInicial,
     DateTime? DataFinal,
-    string? Status
-) : IQuery<Result<IReadOnlyList<ListFaturasResponse>>>;
+    string? Status,
+    int Pagina = 1,
+    int TamanhoPagina = 10
+) : IQuery<Result<ListFaturasPagedResponse>>;

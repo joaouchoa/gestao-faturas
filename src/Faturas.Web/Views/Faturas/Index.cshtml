@@ -1,7 +1,12 @@
 @model FaturaListViewModel
 @{
     ViewData["Title"] = "Faturas";
-    var ptBR = new System.Globalization.CultureInfo("pt-BR");
+    var ptBR         = new System.Globalization.CultureInfo("pt-BR");
+    var filtro       = Model.Filtro;
+    var paginaAtual  = filtro.Pagina;
+    var totalPaginas = Model.TotalPaginas;
+    int pgInicio     = Math.Max(1, paginaAtual - 2);
+    int pgFim        = Math.Min(totalPaginas, paginaAtual + 2);
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -14,22 +19,22 @@
         <div class="row g-3 align-items-end">
             <div class="col-md-3">
                 <label class="form-label">Cliente</label>
-                <input type="text" name="cliente" value="@Model.Filtro.Cliente" class="form-control" placeholder="Nome do cliente" />
+                <input type="text" name="cliente" value="@filtro.Cliente" class="form-control" placeholder="Nome do cliente" />
             </div>
             <div class="col-md-2">
                 <label class="form-label">Data inicial</label>
-                <input type="date" name="dataInicial" value="@Model.Filtro.DataInicial?.ToString("yyyy-MM-dd")" class="form-control" />
+                <input type="date" name="dataInicial" value="@filtro.DataInicial?.ToString("yyyy-MM-dd")" class="form-control" />
             </div>
             <div class="col-md-2">
                 <label class="form-label">Data final</label>
-                <input type="date" name="dataFinal" value="@Model.Filtro.DataFinal?.ToString("yyyy-MM-dd")" class="form-control" />
+                <input type="date" name="dataFinal" value="@filtro.DataFinal?.ToString("yyyy-MM-dd")" class="form-control" />
             </div>
             <div class="col-md-2">
                 <label class="form-label">Status</label>
                 <select name="status" class="form-select">
                     <option value="">Todos</option>
-                    <option value="Aberta"  selected="@(Model.Filtro.Status == "Aberta"  ? "selected" : null)">Aberta</option>
-                    <option value="Fechada" selected="@(Model.Filtro.Status == "Fechada" ? "selected" : null)">Fechada</option>
+                    <option value="Aberta"  selected="@(filtro.Status == "Aberta"  ? "selected" : null)">Aberta</option>
+                    <option value="Fechada" selected="@(filtro.Status == "Fechada" ? "selected" : null)">Fechada</option>
                 </select>
             </div>
             <div class="col-md-3 d-flex gap-2">
@@ -77,4 +82,65 @@ else
             }
         </tbody>
     </table>
+
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <small class="text-muted">
+            Total: <strong>@Model.TotalRegistros</strong> fatura(s) &mdash;
+            Página <strong>@paginaAtual</strong> de <strong>@totalPaginas</strong>
+        </small>
+
+        <nav>
+            <ul class="pagination mb-0">
+                <li class="page-item @(paginaAtual <= 1 ? "disabled" : "")">
+                    <a class="page-link" asp-action="Index"
+                       asp-route-cliente="@filtro.Cliente"
+                       asp-route-dataInicial="@filtro.DataInicial?.ToString("yyyy-MM-dd")"
+                       asp-route-dataFinal="@filtro.DataFinal?.ToString("yyyy-MM-dd")"
+                       asp-route-status="@filtro.Status"
+                       asp-route-pagina="@(paginaAtual - 1)"
+                       asp-route-tamanhoPagina="@filtro.TamanhoPagina">&laquo;</a>
+                </li>
+
+                @for (int p = pgInicio; p <= pgFim; p++)
+                {
+                    <li class="page-item @(p == paginaAtual ? "active" : "")">
+                        <a class="page-link" asp-action="Index"
+                           asp-route-cliente="@filtro.Cliente"
+                           asp-route-dataInicial="@filtro.DataInicial?.ToString("yyyy-MM-dd")"
+                           asp-route-dataFinal="@filtro.DataFinal?.ToString("yyyy-MM-dd")"
+                           asp-route-status="@filtro.Status"
+                           asp-route-pagina="@p"
+                           asp-route-tamanhoPagina="@filtro.TamanhoPagina">@p</a>
+                    </li>
+                }
+
+                <li class="page-item @(paginaAtual >= totalPaginas ? "disabled" : "")">
+                    <a class="page-link" asp-action="Index"
+                       asp-route-cliente="@filtro.Cliente"
+                       asp-route-dataInicial="@filtro.DataInicial?.ToString("yyyy-MM-dd")"
+                       asp-route-dataFinal="@filtro.DataFinal?.ToString("yyyy-MM-dd")"
+                       asp-route-status="@filtro.Status"
+                       asp-route-pagina="@(paginaAtual + 1)"
+                       asp-route-tamanhoPagina="@filtro.TamanhoPagina">&raquo;</a>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="d-flex align-items-center gap-2">
+            <small class="text-muted text-nowrap">Por página:</small>
+            <form method="get" class="d-flex gap-1">
+                <input type="hidden" name="cliente"      value="@filtro.Cliente" />
+                <input type="hidden" name="dataInicial"  value="@filtro.DataInicial?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="dataFinal"    value="@filtro.DataFinal?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="status"       value="@filtro.Status" />
+                <input type="hidden" name="pagina"       value="1" />
+                <select name="tamanhoPagina" class="form-select form-select-sm" style="width:80px" onchange="this.form.submit()">
+                    @foreach (var op in new[] { 5, 10, 25, 50 })
+                    {
+                        <option value="@op" selected="@(filtro.TamanhoPagina == op ? "selected" : null)">@op</option>
+                    }
+                </select>
+            </form>
+        </div>
+    </div>
 }

@@ -16,7 +16,19 @@ public class FaturaRepository : IFaturaRepository
             .Include(f => f.Itens)
             .FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
 
-    public async Task<IReadOnlyList<Fatura>> ListAsync(FaturaFilter filter, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Fatura>> ListAsync(FaturaFilter filter, CancellationToken cancellationToken = default) =>
+        await ApplyFilters(filter)
+            .Include(f => f.Itens)
+            .AsNoTracking()
+            .OrderByDescending(f => f.DataEmissao)
+            .Skip((filter.Pagina - 1) * filter.TamanhoPagina)
+            .Take(filter.TamanhoPagina)
+            .ToListAsync(cancellationToken);
+
+    public async Task<int> CountAsync(FaturaFilter filter, CancellationToken cancellationToken = default) =>
+        await ApplyFilters(filter).CountAsync(cancellationToken);
+
+    private IQueryable<Fatura> ApplyFilters(FaturaFilter filter)
     {
         var query = _context.Faturas.AsQueryable();
 
@@ -38,10 +50,7 @@ public class FaturaRepository : IFaturaRepository
         if (filter.Status.HasValue)
             query = query.Where(f => f.Status == filter.Status.Value);
 
-        return await query
-            .Include(f => f.Itens)
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+        return query;
     }
 
     public async Task AddAsync(Fatura fatura, CancellationToken cancellationToken = default) =>

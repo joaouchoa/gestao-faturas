@@ -47,9 +47,11 @@ public class FaturasController : ControllerBase
         [FromQuery] DateTime? dataInicial,
         [FromQuery] DateTime? dataFinal,
         [FromQuery] string? status,
-        CancellationToken cancellationToken)
+        [FromQuery] int pagina = 1,
+        [FromQuery] int tamanhoPagina = 10,
+        CancellationToken cancellationToken = default)
     {
-        var request = new ListFaturasRequest(cliente, dataInicial, dataFinal, status);
+        var request = new ListFaturasRequest(cliente, dataInicial, dataFinal, status, pagina, tamanhoPagina);
         var result  = await _sender.Send(request, cancellationToken);
         return result.IsSuccess ? Ok(result.Value) : MapFailure(result.Error);
     }

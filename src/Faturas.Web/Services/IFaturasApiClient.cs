@@ -4,7 +4,7 @@ namespace Faturas.Web.Services;
 
 public interface IFaturasApiClient
 {
-    Task<List<FaturaListItemViewModel>> ListAsync(string? cliente, DateTime? dataInicial, DateTime? dataFinal, string? status, CancellationToken ct = default);
+    Task<(List<FaturaListItemViewModel> Itens, int TotalRegistros, int TotalPaginas)> ListAsync(string? cliente, DateTime? dataInicial, DateTime? dataFinal, string? status, int pagina = 1, int tamanhoPagina = 10, CancellationToken ct = default);
     Task<FaturaDetailsViewModel?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<(Guid? Id, Dictionary<string, string[]>? Errors)> CreateAsync(CreateFaturaViewModel vm, CancellationToken ct = default);
     Task<string?> AddItemAsync(Guid faturaId, AddItemViewModel vm, CancellationToken ct = default);

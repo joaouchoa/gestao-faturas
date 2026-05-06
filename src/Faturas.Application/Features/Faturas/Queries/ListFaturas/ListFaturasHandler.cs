@@ -6,13 +6,13 @@ using Faturas.Domain.Faturas.Repositories;
 namespace Faturas.Application.Features.Faturas.Queries.ListFaturas;
 
 public sealed class ListFaturasHandler
-    : IQueryHandler<ListFaturasRequest, Result<IReadOnlyList<ListFaturasResponse>>>
+    : IQueryHandler<ListFaturasRequest, Result<ListFaturasPagedResponse>>
 {
     private readonly IFaturaRepository _repository;
 
     public ListFaturasHandler(IFaturaRepository repository) => _repository = repository;
 
-    public async Task<Result<IReadOnlyList<ListFaturasResponse>>> Handle(
+    public async Task<Result<ListFaturasPagedResponse>> Handle(
         ListFaturasRequest request,
         CancellationToken cancellationToken)
     {
@@ -24,15 +24,21 @@ public sealed class ListFaturasHandler
             status = parsed;
         }
 
+        var pagina       = request.Pagina < 1 ? 1 : request.Pagina;
+        var tamanhoPagina = request.TamanhoPagina is < 1 or > 100 ? 10 : request.TamanhoPagina;
+
         var filter = new FaturaFilter(
             request.NomeCliente,
             request.DataInicial,
             request.DataFinal,
-            status);
+            status,
+            pagina,
+            tamanhoPagina);
 
         var faturas = await _repository.ListAsync(filter, cancellationToken);
+        var total   = await _repository.CountAsync(filter, cancellationToken);
 
-        var response = faturas
+        var itens = faturas
             .Select(f => new ListFaturasResponse(
                 f.Id,
                 f.Numero.Valor,
@@ -43,6 +49,13 @@ public sealed class ListFaturasHandler
                 f.Itens.Count))
             .ToList();
 
-        return Result<IReadOnlyList<ListFaturasResponse>>.Success(response);
+        var totalPaginas = (int)Math.Ceiling(total / (double)tamanhoPagina);
+
+        return Result<ListFaturasPagedResponse>.Success(new ListFaturasPagedResponse(
+            itens,
+            total,
+            pagina,
+            tamanhoPagina,
+            totalPaginas));
     }
 }

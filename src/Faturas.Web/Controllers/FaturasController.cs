@@ -10,18 +10,26 @@ public class FaturasController : Controller
 
     public FaturasController(IFaturasApiClient client) => _client = client;
 
-    public async Task<IActionResult> Index(string? cliente, DateTime? dataInicial, DateTime? dataFinal, string? status)
+    public async Task<IActionResult> Index(
+        string? cliente, DateTime? dataInicial, DateTime? dataFinal, string? status,
+        int pagina = 1, int tamanhoPagina = 10)
     {
-        var faturas = await _client.ListAsync(cliente, dataInicial, dataFinal, status);
+        var (faturas, totalRegistros, totalPaginas) =
+            await _client.ListAsync(cliente, dataInicial, dataFinal, status, pagina, tamanhoPagina);
+
         var vm = new FaturaListViewModel
         {
-            Faturas = faturas,
-            Filtro  = new FaturaFilterViewModel
+            Faturas        = faturas,
+            TotalRegistros = totalRegistros,
+            TotalPaginas   = totalPaginas,
+            Filtro = new FaturaFilterViewModel
             {
-                Cliente      = cliente,
-                DataInicial  = dataInicial,
-                DataFinal    = dataFinal,
-                Status       = status
+                Cliente       = cliente,
+                DataInicial   = dataInicial,
+                DataFinal     = dataFinal,
+                Status        = status,
+                Pagina        = pagina,
+                TamanhoPagina = tamanhoPagina
             }
         };
         return View(vm);

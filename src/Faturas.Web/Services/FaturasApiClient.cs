@@ -21,28 +21,41 @@ public class FaturasApiClient : IFaturasApiClient
         _logger = logger;
     }
 
-    public async Task<List<FaturaListItemViewModel>> ListAsync(
+    public async Task<(List<FaturaListItemViewModel> Itens, int TotalRegistros, int TotalPaginas)> ListAsync(
         string? cliente, DateTime? dataInicial, DateTime? dataFinal, string? status,
+        int pagina = 1, int tamanhoPagina = 10,
         CancellationToken ct = default)
     {
         var query = new Dictionary<string, string?>();
-        if (!string.IsNullOrWhiteSpace(cliente))  query["cliente"]      = cliente;
-        if (dataInicial.HasValue)                  query["dataInicial"]  = dataInicial.Value.ToString("yyyy-MM-dd");
-        if (dataFinal.HasValue)                    query["dataFinal"]    = dataFinal.Value.ToString("yyyy-MM-dd");
-        if (!string.IsNullOrWhiteSpace(status))   query["status"]       = status;
+        if (!string.IsNullOrWhiteSpace(cliente)) query["cliente"]       = cliente;
+        if (dataInicial.HasValue)                query["dataInicial"]   = dataInicial.Value.ToString("yyyy-MM-dd");
+        if (dataFinal.HasValue)                  query["dataFinal"]     = dataFinal.Value.ToString("yyyy-MM-dd");
+        if (!string.IsNullOrWhiteSpace(status))  query["status"]        = status;
+        query["pagina"]       = pagina.ToString();
+        query["tamanhoPagina"] = tamanhoPagina.ToString();
 
         var url = QueryHelpers.AddQueryString("/api/faturas", query);
 
         try
         {
             var response = await _http.GetAsync(url, ct);
-            if (!response.IsSuccessStatusCode) return [];
-            return await response.Content.ReadFromJsonAsync<List<FaturaListItemViewModel>>(_opts, ct) ?? [];
+            if (!response.IsSuccessStatusCode) return ([], 0, 0);
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            var doc  = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            var itens = root.GetProperty("itens")
+                .Deserialize<List<FaturaListItemViewModel>>(_opts) ?? [];
+            var total       = root.GetProperty("totalRegistros").GetInt32();
+            var totalPaginas = root.GetProperty("totalPaginas").GetInt32();
+
+            return (itens, total, totalPaginas);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erro ao listar faturas");
-            return [];
+            return ([], 0, 0);
         }
     }
 
